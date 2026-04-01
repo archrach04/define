@@ -1,4 +1,4 @@
-# Define
+# define.
 
 Define is a lightweight Chrome extension that lets you look up words, phrases, and idioms on any page, then save them as flashcards for spaced-repetition review.
 
