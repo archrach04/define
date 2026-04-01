@@ -5,6 +5,101 @@
 const GITHUB_MODELS_KEY_STORAGE = 'githubModelsApiKey';
 const GEMINI_API_KEY_STORAGE = 'geminiApiKey';
 
+function stripMarkdownFences(text) {
+  return String(text || '')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+}
+
+function stripCodeBlocks(text) {
+  // Remove fenced blocks while leaving other text intact.
+  return String(text || '').replace(/```[\s\S]*?```/g, '').trim();
+}
+
+function tryExtractJsonFromText(text) {
+  const raw = String(text || '');
+  const candidates = [];
+
+  // 1) JSON fenced blocks.
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  let fm;
+  while ((fm = fenceRe.exec(raw))) {
+    const inner = String(fm[1] || '').trim();
+    if (inner) candidates.push(inner);
+  }
+
+  // 2) Bracket-scanned JSON objects/arrays.
+  const starts = [];
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '{' || ch === '[') starts.push(i);
+  }
+
+  const maxScan = 10;
+  for (const startIndex of starts.slice(0, maxScan)) {
+    const open = raw[startIndex];
+    const close = open === '{' ? '}' : ']';
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = startIndex; i < raw.length; i++) {
+      const ch = raw[i];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === '\\') {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === open) depth++;
+      if (ch === close) depth--;
+
+      if (depth === 0) {
+        const candidate = raw.slice(startIndex, i + 1).trim();
+        if (candidate) candidates.push(candidate);
+        break;
+      }
+    }
+  }
+
+  // 3) Whole response after fence stripping (last resort).
+  const fallback = stripMarkdownFences(raw);
+  if (fallback) candidates.push(fallback);
+
+  const seen = new Set();
+  for (const c of candidates) {
+    const key = c.slice(0, 2000);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      return { ok: true, value: JSON.parse(c) };
+    } catch {
+      // continue
+    }
+  }
+
+  return { ok: false, value: null };
+}
+
+function modelTextFallback(raw) {
+  // Prefer any non-code text; otherwise keep a trimmed version of the whole thing.
+  const noCode = stripCodeBlocks(raw);
+  const cleaned = (noCode || stripMarkdownFences(raw)).trim();
+  return cleaned;
+}
+
 // ── Context menu ─────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -93,7 +188,7 @@ Keep it concise and practical for learners. Text to explain: "${text}"`;
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 650 }
+      generationConfig: { temperature: 0.2, maxOutputTokens: 650, responseMimeType: 'application/json' }
     })
   });
 
@@ -107,16 +202,18 @@ Keep it concise and practical for learners. Text to explain: "${text}"`;
     ? data.candidates[0].content.parts.map(p => p?.text || '').join('')
     : '';
 
-  const cleaned = String(raw)
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
+  const parsed = tryExtractJsonFromText(raw);
+  if (parsed.ok && parsed.value && typeof parsed.value === 'object') return parsed.value;
 
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error('Failed to parse Gemini response as JSON');
-  }
+  // Graceful fallback: show the model output as usage notes instead of erroring.
+  const fallbackText = modelTextFallback(raw).slice(0, 1200) || 'LLM returned no usable text.';
+  return {
+    whereToUse: '',
+    usageNotes: fallbackText,
+    register: '',
+    examples: [],
+    tips: []
+  };
 }
 
 // ── Main fetch orchestrator ───────────────────────────────────
@@ -188,7 +285,8 @@ Provide 1-2 meanings maximum. Be concise and accurate.`;
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 700
+        maxOutputTokens: 700,
+        responseMimeType: 'application/json'
       }
     })
   });
@@ -203,16 +301,22 @@ Provide 1-2 meanings maximum. Be concise and accurate.`;
     ? data.candidates[0].content.parts.map(p => p?.text || '').join('')
     : '';
 
-  const cleaned = String(raw)
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
+  const parsed = tryExtractJsonFromText(raw);
+  if (parsed.ok && parsed.value && typeof parsed.value === 'object') return parsed.value;
 
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error('Failed to parse Gemini response as JSON');
-  }
+  const fallbackText = modelTextFallback(raw).slice(0, 500);
+  return {
+    word: text,
+    source: 'gemini',
+    meanings: [
+      {
+        partOfSpeech: text.includes(' ') ? 'phrase' : 'unknown',
+        definition: fallbackText || 'No definition returned.',
+        examples: [],
+        synonyms: []
+      }
+    ]
+  };
 }
 
 // ── Free Dictionary API (dictionaryapi.dev) ───────────────────
@@ -530,13 +634,22 @@ Provide 1-2 meanings maximum.`;
 
   const data = await res.json();
   const raw = data?.choices?.[0]?.message?.content || '';
-  // Strip possible markdown fences
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error('Failed to parse GPT-4.1 response as JSON');
-  }
+  const parsed = tryExtractJsonFromText(raw);
+  if (parsed.ok && parsed.value && typeof parsed.value === 'object') return parsed.value;
+
+  const fallbackText = modelTextFallback(raw).slice(0, 500);
+  return {
+    word: text,
+    source: 'gpt4',
+    meanings: [
+      {
+        partOfSpeech: text.includes(' ') ? 'phrase' : 'unknown',
+        definition: fallbackText || 'No definition returned.',
+        examples: [],
+        synonyms: []
+      }
+    ]
+  };
 }
 
 // ── Wikitext helpers ──────────────────────────────────────────

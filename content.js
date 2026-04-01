@@ -28,6 +28,150 @@ const AUDIO_ICON_STOP = '⏹';
 
 let llmRequestInFlight = false;
 
+function tryExtractJsonCandidate(text) {
+  const raw = String(text || '');
+
+  // Prefer fenced JSON blocks if present.
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  const fm = fenceRe.exec(raw);
+  if (fm?.[1]) return String(fm[1]).trim();
+
+  // Otherwise, scan for the first balanced JSON object/array.
+  const startIndex = raw.search(/[\[{]/);
+  if (startIndex < 0) return '';
+
+  const open = raw[startIndex];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = startIndex; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === '\\') {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === open) depth++;
+    if (ch === close) depth--;
+    if (depth === 0) return raw.slice(startIndex, i + 1).trim();
+  }
+
+  return '';
+}
+
+function tryParseJsonLenient(text) {
+  const candidate = tryExtractJsonCandidate(text);
+  if (!candidate) return { ok: false, value: null };
+
+  const attempts = [];
+  attempts.push(candidate);
+
+  // Common model quirks: smart quotes + trailing commas.
+  attempts.push(
+    candidate
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/,\s*([}\]])/g, '$1')
+  );
+
+  for (const a of attempts) {
+    try {
+      return { ok: true, value: JSON.parse(a) };
+    } catch {
+      // continue
+    }
+  }
+  return { ok: false, value: null };
+}
+
+function formatKeyLabel(key) {
+  const k = String(key || '').trim();
+  if (!k) return 'info';
+  // Convert camelCase / snake_case / kebab-case to spaced labels.
+  return k
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function safeTruncateText(text, maxLen) {
+  const s = String(text || '').trim();
+  const limit = Math.max(200, Number(maxLen || 1600));
+  if (s.length <= limit) return s;
+  // Prefer truncating at a sentence boundary; fall back to word boundary.
+  const slice = s.slice(0, limit);
+  const sentenceCut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+  if (sentenceCut > 180) return slice.slice(0, sentenceCut + 1).trim() + '…';
+  const wordCut = slice.lastIndexOf(' ');
+  if (wordCut > 180) return slice.slice(0, wordCut).trim() + '…';
+  return slice.trim() + '…';
+}
+
+function renderValueToHtml(value, depth = 0) {
+  const MAX_DEPTH = 3;
+  if (value == null) return '';
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const t = normalizeText(String(value));
+    if (!t) return '';
+    return `<div class="wf-llm-text">${escHtml(safeTruncateText(t, 1800))}</div>`;
+  }
+
+  if (Array.isArray(value)) {
+    const items = value
+      .map(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+        ? normalizeText(String(v))
+        : (v && typeof v === 'object')
+          ? normalizeText(Object.entries(v).map(([k, vv]) => `${formatKeyLabel(k)}: ${typeof vv === 'string' ? vv : JSON.stringify(vv)}`).join(' · '))
+          : '')
+      .map(s => String(s || '').trim())
+      .filter(Boolean)
+      .slice(0, 10);
+
+    if (!items.length) return '';
+    let html = `<div class="wf-llm-list">`;
+    for (const it of items) html += `<div class="wf-llm-item">${escHtml(safeTruncateText(it, 800))}</div>`;
+    html += `</div>`;
+    return html;
+  }
+
+  if (typeof value === 'object') {
+    if (depth >= MAX_DEPTH) {
+      // Avoid dumping raw JSON; give a short summary.
+      const keys = Object.keys(value);
+      return keys.length ? `<div class="wf-llm-text">${escHtml(`(${keys.length} fields)`)}</div>` : '';
+    }
+
+    const entries = Object.entries(value);
+    if (!entries.length) return '';
+
+    let html = '';
+    for (const [k, v] of entries) {
+      const inner = renderValueToHtml(v, depth + 1);
+      if (!inner) continue;
+      html += `<span class="wf-label">${escHtml(formatKeyLabel(k))}</span>${inner}`;
+    }
+    return html;
+  }
+
+  return '';
+}
+
 // ── Main entry ────────────────────────────────────────────────
 async function showDefinitionPopup(word) {
   removeExistingPopup();
@@ -216,30 +360,62 @@ function upsertLlmSection(bodyEl) {
 }
 
 function renderLlmDeepDive(container, data) {
+  // If the model returned JSON wrapped in prose (e.g. "Your JSON (structure)…"),
+  // try to extract and parse it so we can render the structured fields.
+  if (typeof data === 'string') {
+    const parsed = tryParseJsonLenient(data);
+    if (parsed.ok) data = parsed.value;
+  } else if (data && typeof data === 'object') {
+    const possibleText = data.raw || data.text || data.content || '';
+    if (typeof possibleText === 'string' && /[\[{]/.test(possibleText)) {
+      const parsed = tryParseJsonLenient(possibleText);
+      if (parsed.ok) data = parsed.value;
+    }
+  }
+
   const where = normalizeText(data?.whereToUse || '');
   const usage = normalizeText(data?.usageNotes || '');
   const register = normalizeText(data?.register || '');
-  const examples = Array.isArray(data?.examples) ? data.examples.map(e => normalizeText(e)).filter(Boolean).slice(0, 3) : [];
-  const tips = Array.isArray(data?.tips) ? data.tips.map(t => normalizeText(t)).filter(Boolean).slice(0, 4) : [];
+  const examples = Array.isArray(data?.examples) ? data.examples.map(e => normalizeText(e)).filter(Boolean).slice(0, 6) : [];
+  const tips = Array.isArray(data?.tips) ? data.tips.map(t => normalizeText(t)).filter(Boolean).slice(0, 8) : [];
 
   let html = '';
-  if (where) html += `<span class="wf-label">where to use</span><div class="wf-llm-text">${escHtml(where)}</div>`;
-  if (usage) html += `<span class="wf-label">how to use</span><div class="wf-llm-text">${escHtml(usage)}</div>`;
-  if (register) html += `<span class="wf-label">tone</span><div class="wf-llm-text">${escHtml(register)}</div>`;
+  if (where) html += `<span class="wf-label">where to use</span><div class="wf-llm-text">${escHtml(safeTruncateText(where, 1800))}</div>`;
+  if (usage) html += `<span class="wf-label">how to use</span><div class="wf-llm-text">${escHtml(safeTruncateText(usage, 1800))}</div>`;
+  if (register) html += `<span class="wf-label">tone</span><div class="wf-llm-text">${escHtml(safeTruncateText(register, 900))}</div>`;
 
   if (examples.length) {
     html += `<span class="wf-label">examples</span><div class="wf-llm-list">`;
-    for (const ex of examples) html += `<div class="wf-llm-item">${escHtml(ex)}</div>`;
+    for (const ex of examples) html += `<div class="wf-llm-item">${escHtml(safeTruncateText(ex, 700))}</div>`;
     html += `</div>`;
   }
 
   if (tips.length) {
     html += `<span class="wf-label">tips</span><div class="wf-llm-list">`;
-    for (const tip of tips) html += `<div class="wf-llm-item">${escHtml(tip)}</div>`;
+    for (const tip of tips) html += `<div class="wf-llm-item">${escHtml(safeTruncateText(tip, 700))}</div>`;
     html += `</div>`;
   }
 
-  if (!html) html = `<div class="wf-llm-error">No LLM notes returned</div>`;
+  // Render any extra fields the LLM returned (so we don't drop info).
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const extra = { ...data };
+    delete extra.whereToUse;
+    delete extra.usageNotes;
+    delete extra.register;
+    delete extra.examples;
+    delete extra.tips;
+
+    // If the model returned its content under a different key, still render it.
+    // (renderValueToHtml handles strings/arrays/objects.)
+    const extraHtml = renderValueToHtml(extra);
+    if (extraHtml) html += extraHtml;
+  }
+
+  if (!html) {
+    // Last resort: render *whatever* we got in a readable way.
+    const anyHtml = renderValueToHtml(data);
+    html = anyHtml || `<div class="wf-llm-error">No LLM notes returned</div>`;
+  }
   container.innerHTML = html;
 }
 
