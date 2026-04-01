@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Define</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --ink: #0a0a0a;
+      --paper: #fafaf8;
+      --muted: #888;
+      --rule: #ddd;
+      --accent: #0a0a0a;
+    }
+
+    body {
+      width: 300px;
+      font-family: 'EB Garamond', Georgia, serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    /* Header */
+    .header {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .header-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888;
+    }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--rule);
+    }
+    .stat {
+      text-align: center;
+      padding: 12px 8px;
+      border-right: 1px solid var(--rule);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-value {
+      display: block;
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+    .stat-label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* Actions */
+    .actions {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .action-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1.5px solid var(--ink);
+      border-radius: 1px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      text-align: left;
+    }
+    .action-btn:hover { background: var(--ink); color: var(--paper); }
+    .action-btn.primary { background: var(--ink); color: var(--paper); }
+    .action-btn.primary:hover { background: #333; }
+
+    .action-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* API Key section */
+    .api-section {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .api-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .api-row {
+      display: flex;
+      gap: 6px;
+    }
+    .api-input {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 7px 9px;
+      border: 1.5px solid var(--rule);
+      border-radius: 1px;
+      background: var(--paper);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.12s;
+    }
+    .api-input:focus { border-color: var(--ink); }
+    .api-save {
+      padding: 7px 11px;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      border-radius: 1px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .api-save:hover { background: #333; }
+    .api-saved-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: #2d7a2d;
+      margin-top: 4px;
+      display: none;
+    }
+    .api-saved-indicator.visible { display: block; }
+
+    /* Recent words */
+    .recent {
+      padding: 12px 14px 8px;
+    }
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .word-item {
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--rule);
+      cursor: pointer;
+      transition: opacity 0.12s;
+    }
+    .word-item:last-child { border-bottom: none; }
+    .word-item:hover { opacity: 0.65; }
+    .word-name {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .word-preview {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-style: italic;
+    }
+
+    .empty-words {
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
+      padding: 8px 0;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-top">
+      <h1>Define</h1>
+    </div>
+    <div class="header-sub">right-click any selection → define</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-value" id="total-words">0</span>
+      <span class="stat-label">Total</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="due-words">0</span>
+      <span class="stat-label">Due</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="learned-words">0</span>
+      <span class="stat-label">Learned</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="action-btn primary" id="review-btn">
+      <span class="action-icon">◈</span>
+      <span>start review session</span>
+    </button>
+    <button class="action-btn" id="notebook-btn">
+      <span class="action-icon">◻</span>
+      <span>open notebook</span>
+    </button>
+  </div>
+
+  <div class="api-section">
+    <span class="api-label">GitHub Models API key (for phrases & fallback)</span>
+    <div class="api-row">
+      <input class="api-input" id="api-key-input" type="password" placeholder="ghp_… or azure token" />
+      <button class="api-save" id="api-key-save">save</button>
+    </div>
+    <div class="api-saved-indicator" id="api-saved">✓ key saved</div>
+  </div>
+
+  <div class="recent">
+    <span class="section-label">recent words</span>
+    <div id="recent-list"></div>
+  </div>
+
+  <div class="footer">highlight text → right-click → define</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

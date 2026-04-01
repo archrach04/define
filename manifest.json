@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Define",
+  "version": "2.0.0",
+  "description": "Define words & phrases, save as flashcards with spaced repetition",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://en.wiktionary.org/*",
+    "https://api.dictionaryapi.dev/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://models.inference.ai.azure.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["popup.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

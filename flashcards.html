@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Define</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="flashcards.css">
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <div class="site-logo">
+          <span class="site-logo-mark">D</span>
+          <span class="site-logo-text">Define</span>
+        </div>
+        <nav class="site-nav">
+          <button class="nav-btn active" id="nav-review">Review</button>
+          <button class="nav-btn" id="nav-notebook">Notebook</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="site-main">
+
+      <!-- ── REVIEW VIEW ── -->
+      <section id="review-view" class="view">
+        <div class="review-meta" id="review-meta">
+          <span class="review-counter" id="review-counter"></span>
+        </div>
+
+        <div class="card-wrap" id="card-wrap">
+          <div class="card" id="review-card" role="button" tabindex="0" aria-label="Flashcard — press Space or Enter to flip">
+            <div class="card-front" id="card-front"></div>
+            <div class="card-back" id="card-back"></div>
+          </div>
+        </div>
+
+        <div class="review-controls" id="review-controls">
+          <button class="ctrl-btn" id="flip-btn">flip</button>
+          <button class="ctrl-btn" id="next-btn">next</button>
+          <button class="ctrl-btn ctrl-wrong" id="wrong-btn" disabled>again</button>
+          <button class="ctrl-btn ctrl-correct" id="correct-btn" disabled>good</button>
+        </div>
+
+        <div class="empty-state hidden" id="review-empty">
+          <div class="empty-glyph">◇</div>
+          <div class="empty-title">Nothing due</div>
+          <div class="empty-body">All caught up. Come back later.</div>
+        </div>
+      </section>
+
+      <!-- ── NOTEBOOK VIEW ── -->
+      <section id="notebook-view" class="view hidden">
+        <div class="notebook-toolbar">
+          <input class="nb-search" id="nb-search" type="search" placeholder="Search words…" />
+          <span class="nb-count" id="nb-count"></span>
+          <button class="nb-pdf-btn" id="nb-pdf" type="button">download pdf</button>
+        </div>
+        <div class="nb-list" id="nb-list"></div>
+        <div class="empty-state hidden" id="notebook-empty">
+          <div class="empty-glyph">◇</div>
+          <div class="empty-title">Notebook is empty</div>
+          <div class="empty-body">Highlight words on any page and right-click → Define.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="flashcards.js"></script>
+</body>
+</html>
