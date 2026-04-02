@@ -9,6 +9,7 @@ let currentCard = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadCards();
+  await loadApiKeys();
   applyUrlView();
   initListeners();
   render();
@@ -39,6 +40,34 @@ function initListeners() {
   document.getElementById('nb-search').addEventListener('input', (e) => renderNotebook(e.target.value));
 
   document.getElementById('nb-pdf')?.addEventListener('click', () => downloadNotebookPdf());
+
+  // API key saves (same storage keys as popup/background)
+  document.getElementById('fc-github-api-save')?.addEventListener('click', async () => {
+    const key = document.getElementById('fc-github-api-key').value.trim();
+    if (!key) return;
+    await chrome.storage.local.set({ githubModelsApiKey: key });
+  });
+
+  document.getElementById('fc-gemini-api-save')?.addEventListener('click', async () => {
+    const key = document.getElementById('fc-gemini-api-key').value.trim();
+    if (!key) return;
+    await chrome.storage.local.set({ geminiApiKey: key });
+  });
+}
+
+// ── API keys (GitHub Models / Gemini) ────────────────────────
+async function loadApiKeys() {
+  try {
+    const res = await chrome.storage.local.get(['githubModelsApiKey', 'geminiApiKey']);
+    if (res.githubModelsApiKey && document.getElementById('fc-github-api-key')) {
+      document.getElementById('fc-github-api-key').value = res.githubModelsApiKey;
+    }
+    if (res.geminiApiKey && document.getElementById('fc-gemini-api-key')) {
+      document.getElementById('fc-gemini-api-key').value = res.geminiApiKey;
+    }
+  } catch (err) {
+    console.error('loadApiKeys error:', err);
+  }
 }
 
 function downloadNotebookPdf() {

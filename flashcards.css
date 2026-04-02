@@ -92,6 +92,61 @@ html, body {
 
 .view.hidden { display: none; }
 
+/* ── API settings (keys) ───────────────────────────────────── */
+.api-settings {
+  margin-bottom: 22px;
+  padding: 12px 14px;
+  border: 1px dashed var(--rule);
+  background: var(--wash);
+}
+.api-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.api-settings-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.api-settings-input {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 6px 8px;
+  border: 1.5px solid var(--rule);
+  border-radius: 1px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.12s;
+}
+.api-settings-input:focus { border-color: var(--ink); }
+.api-settings-save {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 1px;
+  border: 1.5px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.api-settings-save:hover { background: #333; }
+.api-settings-note {
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--muted);
+}
+
 /* ── Review ─────────────────────────────────────────────────── */
 .review-meta {
   display: flex;

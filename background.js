@@ -168,11 +168,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function askLlmDeepDive(rawText) {
   const text = String(rawText || '').trim();
   if (!text) throw new Error('No text provided');
+  const stored = await chrome.storage.local.get([GEMINI_API_KEY_STORAGE, GITHUB_MODELS_KEY_STORAGE]);
+  const geminiKey = stored[GEMINI_API_KEY_STORAGE];
+  const githubKey = stored[GITHUB_MODELS_KEY_STORAGE];
 
-  const stored = await chrome.storage.local.get([GEMINI_API_KEY_STORAGE]);
-  const apiKey = stored[GEMINI_API_KEY_STORAGE];
-  if (!apiKey) throw new Error('NO_GEMINI_KEY');
+  if (!geminiKey && !githubKey) throw new Error('NO_LLM_KEY');
 
+  // Prefer Gemini if configured; otherwise fall back to GitHub Models GPT-4.1.
+  if (geminiKey) {
+    try {
+      return await askLlmDeepDiveGemini(text, geminiKey);
+    } catch (e) {
+      console.warn('Gemini askLLM failed, trying GPT-4.1:', e.message);
+    }
+  }
+
+  if (githubKey) {
+    return askLlmDeepDiveGithub(text, githubKey);
+  }
+
+  throw new Error('NO_LLM_KEY');
+}
+
+async function askLlmDeepDiveGemini(text, apiKey) {
   const prompt = `Return ONLY valid JSON (no markdown) with this shape:
 {
   "whereToUse": "<1-2 sentences about typical contexts>",
@@ -205,7 +223,55 @@ Keep it concise and practical for learners. Text to explain: "${text}"`;
   const parsed = tryExtractJsonFromText(raw);
   if (parsed.ok && parsed.value && typeof parsed.value === 'object') return parsed.value;
 
-  // Graceful fallback: show the model output as usage notes instead of erroring.
+  const fallbackText = modelTextFallback(raw).slice(0, 1200) || 'LLM returned no usable text.';
+  return {
+    whereToUse: '',
+    usageNotes: fallbackText,
+    register: '',
+    examples: [],
+    tips: []
+  };
+}
+
+async function askLlmDeepDiveGithub(text, apiKey) {
+  const systemPrompt = `You are a vocabulary coach. The user provides a word or short phrase.
+Return ONLY valid JSON (no markdown) with this shape:
+{
+  "whereToUse": "<1-2 sentences about typical contexts>",
+  "usageNotes": "<1-3 short sentences about how to use it correctly>",
+  "register": "<formal|neutral|informal|slang and any tone notes>",
+  "examples": ["<example 1>", "<example 2>", "<example 3 (optional)>"] ,
+  "tips": ["<tip 1>", "<tip 2>", "<tip 3 (optional)>"]
+}
+Keep it concise and practical for learners.`;
+
+  const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4.1',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Text to explain: "${text}"` }
+      ],
+      max_tokens: 650,
+      temperature: 0.2
+    })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`GPT-4.1 API error (askLLM): ${res.status} ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const raw = data?.choices?.[0]?.message?.content || '';
+  const parsed = tryExtractJsonFromText(raw);
+  if (parsed.ok && parsed.value && typeof parsed.value === 'object') return parsed.value;
+
   const fallbackText = modelTextFallback(raw).slice(0, 1200) || 'LLM returned no usable text.';
   return {
     whereToUse: '',
@@ -231,7 +297,12 @@ async function fetchDefinition(rawText) {
     } catch (e) {
       console.warn('Wiktionary phrase lookup failed, trying Gemini:', e.message);
     }
-    return fetchGemini25Flash(text);
+    try {
+      return await fetchGemini25Flash(text);
+    } catch (e) {
+      console.warn('Gemini phrase lookup failed, falling back to GPT-4.1:', e.message);
+      return fetchGPT41(text);
+    }
   }
 
   if (!isPhrase) {
@@ -246,7 +317,15 @@ async function fetchDefinition(rawText) {
       const result = await fetchWiktionaryWithRedirect(text.toLowerCase());
       if (result) return result;
     } catch (e) {
-      console.warn('Wiktionary failed, falling back to GPT-4.1:', e.message);
+      console.warn('Wiktionary failed, trying Gemini/GPT-4.1:', e.message);
+    }
+
+    // If both free dictionary and Wiktionary fail for normal lookups,
+    // try Gemini first, then fall back to GitHub Models GPT-4.1.
+    try {
+      return await fetchGemini25Flash(text);
+    } catch (e) {
+      console.warn('Gemini (word) lookup failed, falling back to GPT-4.1:', e.message);
     }
   }
 
@@ -354,6 +433,17 @@ async function fetchFreeDictionary(word) {
 
   const audioUrl = pickDictionaryApiAudioUrl(entry);
 
+  // Collect all example sentences available in the entry so we can
+  // always attach at least one example to each meaning when possible.
+  const allExamples = [];
+  for (const m of meaningsIn) {
+    const defsArr = Array.isArray(m?.definitions) ? m.definitions : [];
+    for (const d of defsArr) {
+      const ex = d?.example ? String(d.example).trim() : '';
+      if (ex) allExamples.push(ex);
+    }
+  }
+
   const meanings = [];
   for (const m of meaningsIn) {
     if (meanings.length >= 2) break;
@@ -363,7 +453,16 @@ async function fetchFreeDictionary(word) {
 
     const first = defs[0] || {};
     const definition = String(first.definition || '').trim();
-    const example = first.example ? String(first.example).trim() : '';
+    // Prefer an example from this sense; if none, fall back to any
+    // example available in the entry, so users nearly always see a
+    // real sentence from dictionaryapi.dev.
+    let example = first.example ? String(first.example).trim() : '';
+    if (!example) {
+      const fromThisMeaning = defs
+        .map(d => d?.example ? String(d.example).trim() : '')
+        .find(e => !!e);
+      example = fromThisMeaning || allExamples[0] || '';
+    }
 
     const syns = [];
     if (Array.isArray(m?.synonyms)) syns.push(...m.synonyms);

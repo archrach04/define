@@ -262,12 +262,21 @@
   </div>
 
   <div class="api-section">
-    <span class="api-label">GitHub Models API key (for phrases & fallback)</span>
+    <span class="api-label">GitHub Models API key (GPT‑4.1, fallback)</span>
     <div class="api-row">
-      <input class="api-input" id="api-key-input" type="password" placeholder="ghp_… or azure token" />
-      <button class="api-save" id="api-key-save">save</button>
+      <input class="api-input" id="github-api-key-input" type="password" placeholder="ghp_… or GitHub Models token" />
+      <button class="api-save" id="github-api-key-save">save</button>
     </div>
-    <div class="api-saved-indicator" id="api-saved">✓ key saved</div>
+    <div class="api-saved-indicator" id="github-api-saved">✓ GitHub key saved</div>
+  </div>
+
+  <div class="api-section">
+    <span class="api-label">Gemini API key (phrases & LLM notes)</span>
+    <div class="api-row">
+      <input class="api-input" id="gemini-api-key-input" type="password" placeholder="AIza… (Gemini API key)" />
+      <button class="api-save" id="gemini-api-key-save">save</button>
+    </div>
+    <div class="api-saved-indicator" id="gemini-api-saved">✓ Gemini key saved</div>
   </div>
 
   <div class="recent">

@@ -25,6 +25,21 @@
 
     <main class="site-main">
 
+      <!-- ── API key settings ── -->
+      <section class="api-settings" id="api-settings">
+        <div class="api-settings-row">
+          <div class="api-settings-label">GitHub Models (GPT‑4.1)</div>
+          <input class="api-settings-input" id="fc-github-api-key" type="password" placeholder="ghp_… or GitHub Models token" />
+          <button class="api-settings-save" id="fc-github-api-save" type="button">save</button>
+        </div>
+        <div class="api-settings-row">
+          <div class="api-settings-label">Gemini API key</div>
+          <input class="api-settings-input" id="fc-gemini-api-key" type="password" placeholder="AIza… (Gemini API key)" />
+          <button class="api-settings-save" id="fc-gemini-api-save" type="button">save</button>
+        </div>
+        <div class="api-settings-note">Keys are stored locally in this browser only.</div>
+      </section>
+
       <!-- ── REVIEW VIEW ── -->
       <section id="review-view" class="view">
         <div class="review-meta" id="review-meta">

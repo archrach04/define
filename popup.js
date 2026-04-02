@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
   await loadDashboard();
-  await loadApiKey();
+  await loadApiKeys();
   initListeners();
 });
 
@@ -11,20 +11,32 @@ function initListeners() {
   document.getElementById('notebook-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'flashcards.html?view=notebook' });
   });
-  document.getElementById('api-key-save').addEventListener('click', async () => {
-    const key = document.getElementById('api-key-input').value.trim();
+  document.getElementById('github-api-key-save').addEventListener('click', async () => {
+    const key = document.getElementById('github-api-key-input').value.trim();
     if (!key) return;
     await chrome.storage.local.set({ githubModelsApiKey: key });
-    const ind = document.getElementById('api-saved');
+    const ind = document.getElementById('github-api-saved');
+    ind.classList.add('visible');
+    setTimeout(() => ind.classList.remove('visible'), 2500);
+  });
+
+  document.getElementById('gemini-api-key-save').addEventListener('click', async () => {
+    const key = document.getElementById('gemini-api-key-input').value.trim();
+    if (!key) return;
+    await chrome.storage.local.set({ geminiApiKey: key });
+    const ind = document.getElementById('gemini-api-saved');
     ind.classList.add('visible');
     setTimeout(() => ind.classList.remove('visible'), 2500);
   });
 }
 
-async function loadApiKey() {
-  const res = await chrome.storage.local.get(['githubModelsApiKey']);
+async function loadApiKeys() {
+  const res = await chrome.storage.local.get(['githubModelsApiKey', 'geminiApiKey']);
   if (res.githubModelsApiKey) {
-    document.getElementById('api-key-input').value = res.githubModelsApiKey;
+    document.getElementById('github-api-key-input').value = res.githubModelsApiKey;
+  }
+  if (res.geminiApiKey) {
+    document.getElementById('gemini-api-key-input').value = res.geminiApiKey;
   }
 }
 

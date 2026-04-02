@@ -294,23 +294,10 @@ async function runAskLlmFlow(popup, text) {
     </div>`;
 
   try {
-    const keyResp = await chrome.runtime.sendMessage({ action: 'getGeminiKey' });
-    const key = keyResp?.key || '';
-    if (!key) {
-      section.querySelector('.wf-llm-content').innerHTML = '';
-      renderInlineGeminiKeyPrompt(section.querySelector('.wf-llm-content'), async () => {
-        await runAskLlmFlow(popup, text);
-      });
-      return;
-    }
-
     const resp = await chrome.runtime.sendMessage({ action: 'askLLM', text });
     if (!resp?.success) {
-      if (resp?.error === 'NO_GEMINI_KEY') {
-        section.querySelector('.wf-llm-content').innerHTML = '';
-        renderInlineGeminiKeyPrompt(section.querySelector('.wf-llm-content'), async () => {
-          await runAskLlmFlow(popup, text);
-        });
+      if (resp?.error === 'NO_LLM_KEY') {
+        section.querySelector('.wf-llm-content').innerHTML = `<div class="wf-llm-error">Add a Gemini or GitHub Models API key in the popup or flashcards page, then try again.</div>`;
       } else {
         section.querySelector('.wf-llm-content').innerHTML = `<div class="wf-llm-error">${escHtml(resp?.error || 'LLM request failed')}</div>`;
       }
